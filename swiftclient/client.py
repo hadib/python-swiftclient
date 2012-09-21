@@ -230,7 +230,7 @@ def _get_auth_v1_0(url, user, key, snet):
                                resp.getheader('x-auth-token'))
 
 
-def _get_auth_v2_0(url, user, tenant_name, key, snet):
+def _get_auth_v2_0(url, user, tenant_name, key, region, snet):
     body = {'auth':
             {'passwordCredentials': {'password': key, 'username': user},
              'tenantName': tenant_name}}
@@ -242,7 +242,13 @@ def _get_auth_v2_0(url, user, tenant_name, key, snet):
         catalogs = body['access']['serviceCatalog']
         for service in catalogs:
             if service['type'] == 'object-store':
-                url = service['endpoints'][0]['publicURL']
+		if region is None:
+	                url = service['endpoints'][0]['publicURL']
+		else:
+			l = len(service['endpoints'])
+			for i in range (0, l):
+				if service['endpoints'][i]['region'] == region:
+	                		url = service['endpoints'][i]['publicURL']
         token_id = body['access']['token']['id']
         if not url:
             raise ClientException("There is no object-store endpoint "
@@ -259,7 +265,7 @@ def _get_auth_v2_0(url, user, tenant_name, key, snet):
     return url, token_id
 
 
-def get_auth(url, user, key, snet=False, tenant_name=None, auth_version="1.0"):
+def get_auth(url, user, key, region=None, snet=False, tenant_name=None, auth_version="1.0"):
     """
     Get authentication/authorization credentials.
 
@@ -286,7 +292,7 @@ def get_auth(url, user, key, snet=False, tenant_name=None, auth_version="1.0"):
             (tenant_name, user) = user.split(':')
         if not tenant_name:
             raise ClientException('No tenant specified')
-        return _get_auth_v2_0(url, user, tenant_name, key, snet)
+        return _get_auth_v2_0(url, user, tenant_name, key, region, snet)
     else:
         raise ClientException('Unknown auth_version %s specified.'
                               % auth_version)
@@ -896,7 +902,7 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
 class Connection(object):
     """Convenience class to make requests that will also retry the request"""
 
-    def __init__(self, authurl, user, key, retries=5, preauthurl=None,
+    def __init__(self, authurl, user, key, region, retries=5, preauthurl=None,
                  preauthtoken=None, snet=False, starting_backoff=1,
                  tenant_name=None,
                  auth_version="1"):
@@ -916,6 +922,7 @@ class Connection(object):
         self.authurl = authurl
         self.user = user
         self.key = key
+        self.region = region
         self.retries = retries
         self.http_conn = None
         self.url = preauthurl
@@ -928,7 +935,7 @@ class Connection(object):
 
     def get_auth(self):
         return get_auth(self.authurl, self.user,
-                        self.key, snet=self.snet,
+                        self.key, self.region, snet=self.snet,
                         tenant_name=self.tenant_name,
                         auth_version=self.auth_version)
 
