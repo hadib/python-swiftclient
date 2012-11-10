@@ -43,7 +43,6 @@ def get_conn(options):
                       os_options=options.os_options,
                       snet=options.snet)
 
-
 def mkdirs(path):
     try:
         makedirs(path)
